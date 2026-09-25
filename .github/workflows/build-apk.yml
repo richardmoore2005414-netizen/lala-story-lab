@@ -22,7 +22,7 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - name: Checkout code
@@ -32,7 +32,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          # No cache — project uses bun.lock, not package-lock.json
 
       - name: Install dependencies
         run: npm install
@@ -40,19 +39,36 @@ jobs:
       - name: Build web app (Vite → dist/)
         run: npm run build
 
-      - name: Setup Java (for Android build)
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Android SDK (use runner preinstall + needed packages)
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          # GitHub-hosted runners already ship Android SDK
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+          # Accept licenses non-interactively
+          yes | sdkmanager --licenses >/tmp/sdk-licenses.txt || true
+
+          # Install only packages Capacitor/Gradle need (no obsolete "tools")
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
+
+          sdkmanager --list_installed | head -40
 
       - name: Install Capacitor and create Android project
         run: |
           npm install -D @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest
-          # Write capacitor config (avoid interactive prompts)
           cat > capacitor.config.json << 'CAP'
           {
             "appId": "com.lalastorylab.app",
@@ -68,7 +84,7 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
         env:
           CI: true
 
