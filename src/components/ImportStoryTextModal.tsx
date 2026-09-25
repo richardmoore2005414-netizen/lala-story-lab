@@ -519,7 +519,10 @@ export const ImportStoryTextModal: React.FC<ImportStoryTextModalProps> = ({
                     value={manualContent}
                     onChange={e => setManualContent(e.target.value)}
                     rows={8}
-                    placeholder="例如：\nAdam：我回來了。\n啦啦：桌上有溫茶，先喝一口。\nDaniel：外面風大，坐下慢慢說。"
+                    placeholder="例如：
+Adam：我回來了。
+啦啦：桌上有溫茶，先喝一口。
+Daniel：外面風大，坐下慢慢說。"
                     className="w-full text-xs font-sans leading-relaxed bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-800 focus:outline-hidden focus:border-sky-400 focus:bg-white transition-all resize-y"
                   />
                 </div>
