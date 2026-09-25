@@ -1,5 +1,4 @@
-# Build Android APK & upload to GitHub Releases, Artifacts & Google Drive
-name: Build APK & Upload to Google Drive
+name: Build Android APK
 
 on:
   workflow_dispatch:
@@ -10,24 +9,23 @@ permissions:
   contents: write
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build web app (Vite → dist/)
-        run: npm run build
+      - name: Install dependencies & Build web app
+        run: |
+          npm install
+          npm run build
 
       - name: Setup Java 21
         uses: actions/setup-java@v4
@@ -35,25 +33,18 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android Licenses
-        run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-
-      - name: Setup Capacitor and Android Project
+      - name: Build Android Project with Capacitor
         run: |
           npm install --save @capacitor/core @capacitor/android
           npm install --save-dev @capacitor/cli
-          cat > capacitor.config.json << 'CAP'
+          cat > capacitor.config.json << 'EOF'
           {
             "appId": "com.lalastorylab.app",
             "appName": "Lala Story Lab",
             "webDir": "dist",
             "server": { "androidScheme": "https" }
           }
-          CAP
+          EOF
           if [ ! -d "android" ]; then
             npx cap add android
           fi
@@ -63,54 +54,21 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m"
-        env:
-          CI: true
-
-      - name: Locate and copy APK
-        run: |
-          mkdir -p artifacts
-          APK_PATH=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1)
-          if [ -z "$APK_PATH" ]; then
-            echo "::error::No APK file found in android/app/build/outputs/apk!"
-            exit 1
-          fi
-          echo "Found generated APK: $APK_PATH"
-          cp "$APK_PATH" artifacts/LalaStoryLab.apk
-          ls -lh artifacts/LalaStoryLab.apk
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK to GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: lala-story-lab-apk
-          path: artifacts/LalaStoryLab.apk
+          name: LalaStoryLab.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
-          if-no-files-found: error
 
-      - name: Publish Direct Download APK to GitHub Releases
+      - name: Publish APK to GitHub Release
         uses: softprops/action-gh-release@v2
         continue-on-error: true
         with:
           tag_name: apk-latest
-          name: "Lala Story Lab APK (手機直接安裝包)"
-          body: |
-            ## 📱 Lala Story Lab Android APK 下載
-            - **手機點擊直接下載**：[LalaStoryLab.apk](https://github.com/${{ github.repository }}/releases/download/apk-latest/LalaStoryLab.apk)
-          files: artifacts/LalaStoryLab.apk
-          prerelease: false
-          make_latest: true
+          name: "Lala Story Lab APK (Android 安裝包)"
+          files: android/app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload APK to Google Drive (if secrets configured)
-        if: ${{ env.GDRIVE_CREDENTIALS != '' && env.GDRIVE_FOLDER_ID != '' }}
-        continue-on-error: true
-        uses: adityak74/google-drive-upload-git-action@main
-        with:
-          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
-          filename: "artifacts/LalaStoryLab.apk"
-          folderId: ${{ secrets.GDRIVE_FOLDER_ID }}
-          overwrite: "true"
-        env:
-          GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
-          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
