@@ -5,14 +5,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'public/**'
-      - 'package.json'
-      - 'vite.config.ts'
-      - 'index.html'
-      - '.github/workflows/build-apk.yml'
-      - 'capacitor.config.json'
 
 permissions:
   contents: write
@@ -33,7 +25,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
 
       - name: Build web app (Vite → dist/)
         run: npm run build
@@ -44,35 +36,24 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK Environment
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Capacitor and Android Project
         run: |
-          echo "Setting up Android SDK environment..."
-          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-
-          # Add command line tools and platform-tools to PATH
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
-          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
-
-          # Accept all Android licenses non-interactively
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-
-          # Ensure Android 34 platform & build-tools are installed
-          sdkmanager --install \
-            "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0"
-
-      - name: Initialize & Sync Capacitor Android
-        run: |
+          npm install --save @capacitor/core
+          npm install --save-dev @capacitor/cli @capacitor/android
+          cat > capacitor.config.json << 'CAP'
+          {
+            "appId": "com.lalastorylab.app",
+            "appName": "Lala Story Lab",
+            "webDir": "dist",
+            "server": { "androidScheme": "https" }
+          }
+          CAP
           if [ ! -d "android" ]; then
-            echo "Adding Android platform to Capacitor..."
             npx cap add android
           fi
-          echo "Syncing web assets to Android project..."
           npx cap sync android
 
       - name: Build Debug APK with Gradle
@@ -83,17 +64,16 @@ jobs:
         env:
           CI: true
 
-      - name: Locate and copy APK to artifacts
+      - name: Locate and copy APK
         run: |
+          mkdir -p artifacts
           APK_PATH=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1)
           if [ -z "$APK_PATH" ]; then
             echo "::error::No APK file found in android/app/build/outputs/apk!"
             exit 1
           fi
           echo "Found generated APK: $APK_PATH"
-          mkdir -p artifacts
           cp "$APK_PATH" artifacts/LalaStoryLab.apk
-          echo "APK file size:"
           ls -lh artifacts/LalaStoryLab.apk
 
       - name: Upload APK to GitHub Artifacts
@@ -113,7 +93,6 @@ jobs:
           body: |
             ## 📱 Lala Story Lab Android APK 下載
             - **手機點擊直接下載**：[LalaStoryLab.apk](https://github.com/${{ github.repository }}/releases/download/apk-latest/LalaStoryLab.apk)
-            - **Google Drive 儲存**：可將此 APK 直接拖曳至您的 Google 雲端硬碟存放與分享。
           files: artifacts/LalaStoryLab.apk
           prerelease: false
           make_latest: true
@@ -131,12 +110,3 @@ jobs:
         env:
           GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
           GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
-
-      - name: Summary & Instructions
-        run: |
-          echo "## 📱 Android APK 建置完成！" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🚀 超簡單下載方式（手機點擊直接安裝）" >> $GITHUB_STEP_SUMMARY
-          echo "👉 **[直接下載 LalaStoryLab.apk](https://github.com/${{ github.repository }}/releases/download/apk-latest/LalaStoryLab.apk)**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "下載後可以直接傳進你的 **Google Drive**，隨時在任何手機上安裝！" >> $GITHUB_STEP_SUMMARY
