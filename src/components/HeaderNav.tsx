@@ -15,7 +15,7 @@ import {
   Compass,
 } from 'lucide-react';
 import { StoryStorageService } from '../services/storage';
-import { StorySession, StoryBranchNode } from '../types/story';
+import { StorySession, StoryBranchNode, Character } from '../types/story';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface HeaderNavProps {
@@ -23,6 +23,7 @@ interface HeaderNavProps {
   onTabChange: (tab: 'chat' | 'tree' | 'dashboard' | 'diary' | 'corpus') => void;
   session: StorySession;
   branchNodes: StoryBranchNode[];
+  characters?: Character[];
   onSessionChange: (session: StorySession) => void;
   onRefreshData: () => void;
   onOpenImportStoryText?: () => void;

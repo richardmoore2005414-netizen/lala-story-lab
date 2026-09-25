@@ -689,5 +689,14 @@ export class StoryStorageService {
   static setApiServerUrl(url: string): void {
     localStorage.setItem(STORAGE_KEYS.API_SERVER_URL, url.trim());
   }
+
+  // Google Drive APK Link
+  static getGoogleDriveApkUrl(): string {
+    return localStorage.getItem('lala_story_gdrive_apk_url') || '';
+  }
+
+  static setGoogleDriveApkUrl(url: string): void {
+    localStorage.setItem('lala_story_gdrive_apk_url', url.trim());
+  }
 }
 
