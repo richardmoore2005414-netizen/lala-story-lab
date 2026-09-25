@@ -164,7 +164,7 @@ export const ImportStoryTextModal: React.FC<ImportStoryTextModalProps> = ({
     const charIds = parsedData.detectedCharacters.map(c => c.id).filter(id => id !== 'lala');
     const updatedSession: StorySession = {
       ...session,
-      groupParticipantIds: charIds.length > 0 ? charIds : ['adam', 'daniel'],
+      groupParticipantIds: charIds.length > 0 ? charIds : ['adam', 'daniel', 'leon', 'rave', 'amy', 'jiuge', 'fuye', 'ben'],
       selectedPrivateCharacterId: charIds.includes('adam') ? 'adam' : charIds[0] || 'daniel',
     };
     StoryStorageService.saveSession(updatedSession);
@@ -416,12 +416,47 @@ export const ImportStoryTextModal: React.FC<ImportStoryTextModalProps> = ({
                           <span className="font-semibold">{c.name}</span>
                           {c.id === 'adam' && (
                             <span className="text-[10px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-bold">
-                              兒子
+                              法定養子 · 14歲
                             </span>
                           )}
                           {c.id === 'lala' && (
-                            <span className="text-[10px] bg-rose-100 text-rose-700 px-1 py-0.2 rounded">
-                              主角
+                            <span className="text-[10px] bg-rose-100 text-rose-700 px-1 py-0.2 rounded font-bold">
+                              主角 · 楊樂兒
+                            </span>
+                          )}
+                          {c.id === 'daniel' && (
+                            <span className="text-[10px] bg-sky-100 text-sky-800 px-1 py-0.2 rounded font-medium">
+                              現任男友/同居
+                            </span>
+                          )}
+                          {c.id === 'leon' && (
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-medium">
+                              李昂 · Seiko「她的」
+                            </span>
+                          )}
+                          {c.id === 'rave' && (
+                            <span className="text-[10px] bg-orange-100 text-orange-800 px-1 py-0.2 rounded font-medium">
+                              雷偉 · 前男友
+                            </span>
+                          )}
+                          {c.id === 'amy' && (
+                            <span className="text-[10px] bg-pink-100 text-pink-800 px-1 py-0.2 rounded font-medium">
+                              陳詠芯 · Leon前女友
+                            </span>
+                          )}
+                          {c.id === 'jiuge' && (
+                            <span className="text-[10px] bg-violet-100 text-violet-800 px-1 py-0.2 rounded font-medium">
+                              九歌 · 香港黑道
+                            </span>
+                          )}
+                          {c.id === 'fuye' && (
+                            <span className="text-[10px] bg-slate-200 text-slate-800 px-1 py-0.2 rounded font-medium">
+                              傅爺 · 前一年合約
+                            </span>
+                          )}
+                          {c.id === 'ben' && (
+                            <span className="text-[10px] bg-teal-100 text-teal-800 px-1 py-0.2 rounded font-medium">
+                              Ben · 台灣伴遊
                             </span>
                           )}
                         </div>

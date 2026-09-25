@@ -114,6 +114,16 @@ export class StoryStorageService {
           needsResave = true;
         }
       }
+
+      // Ensure all 9 canonical characters are guaranteed to exist in the list
+      const existingIds = new Set(list.map(c => c.id));
+      for (const canon of INITIAL_CHARACTERS) {
+        if (!existingIds.has(canon.id)) {
+          list.push({ ...canon });
+          needsResave = true;
+        }
+      }
+
       if (needsResave || list.length === 0) {
         if (list.length === 0) list = INITIAL_CHARACTERS;
         this.saveCharacters(list);
@@ -435,8 +445,46 @@ export class StoryStorageService {
     branchTitle?: string;
   }): void {
     if (data.characters && data.characters.length > 0) {
-      const cleanChars = data.characters.filter(c => !FABRICATED_CHARACTER_IDS.has(c.id));
-      this.saveCharacters(cleanChars);
+      const incomingMap = new Map(data.characters.map(c => [c.id, c]));
+      const currentList = this.getCharacters();
+      const currentMap = new Map(currentList.map(c => [c.id, c]));
+
+      // 1. Guarantee all 9 canonical characters are in the result and update backgrounds if present
+      const mergedList: Character[] = [];
+      for (const canon of INITIAL_CHARACTERS) {
+        const existing = currentMap.get(canon.id) || canon;
+        const incoming = incomingMap.get(canon.id);
+        const incomingBg = incoming?.background && incoming.background.trim().length > 10 ? incoming.background.trim() : null;
+
+        mergedList.push({
+          ...canon,
+          ...existing,
+          ...(incomingBg ? { background: incomingBg } : {}),
+          id: canon.id,
+          name: canon.name,
+          englishName: canon.englishName,
+          title: canon.title,
+          relationshipWithLala: canon.relationshipWithLala,
+          tagline: canon.tagline,
+        });
+
+        incomingMap.delete(canon.id);
+        currentMap.delete(canon.id);
+      }
+
+      // 2. Preserve any extra custom characters that are not banned
+      for (const extra of incomingMap.values()) {
+        if (!FABRICATED_CHARACTER_IDS.has(extra.id) && !mergedList.find(c => c.id === extra.id)) {
+          mergedList.push(extra);
+        }
+      }
+      for (const extra of currentMap.values()) {
+        if (!FABRICATED_CHARACTER_IDS.has(extra.id) && !mergedList.find(c => c.id === extra.id)) {
+          mergedList.push(extra);
+        }
+      }
+
+      this.saveCharacters(mergedList);
     }
     if (data.corpusItems && data.corpusItems.length > 0) {
       const existing = this.getCorpus();

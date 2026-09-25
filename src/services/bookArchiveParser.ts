@@ -1,6 +1,17 @@
 import JSZip from 'jszip';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { Character, CorpusItem, StoryMessage } from '../types/story';
+import { INITIAL_CHARACTERS } from '../data/initialCorpus';
+
+// Set up PDF worker safely for client browser / webview
+if (typeof window !== 'undefined' && pdfjs?.GlobalWorkerOptions) {
+  try {
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+  } catch (e) {
+    console.warn('Could not set workerSrc on global options:', e);
+  }
+}
 
 export interface ParsedBookData {
   success: boolean;
@@ -19,15 +30,33 @@ export interface ParsedBookData {
 }
 
 /**
- * Extracts plain text from a PDF ArrayBuffer or Uint8Array.
- * Uses pdfjs-dist primary parser, with a fallback stream reader.
+ * Checks if a string contains mostly readable Unicode characters (not binary mojibake/亂碼).
+ */
+function isCleanReadableText(text: string): boolean {
+  if (!text || text.length === 0) return false;
+  // Count readable characters (alphanumeric, punctuation, CJK Chinese characters, whitespace)
+  const readableRegex = /[\w\s\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef.,!?'"():;\-——「」『』、《》〈〉]/g;
+  const matches = text.match(readableRegex);
+  if (!matches) return false;
+  const ratio = matches.length / text.length;
+  return ratio > 0.75;
+}
+
+/**
+ * Extracts plain text from a PDF ArrayBuffer or Uint8Array using pdfjs.
+ * Strictly avoids binary decode fallbacks that cause 亂碼.
  */
 export async function extractTextFromPdfData(data: Uint8Array): Promise<string> {
   try {
+    if (typeof window !== 'undefined' && pdfjs?.GlobalWorkerOptions && !pdfjs.GlobalWorkerOptions.workerSrc) {
+      pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+    }
+
     const loadingTask = pdfjs.getDocument({
       data,
       useSystemFonts: true,
       disableFontFace: true,
+      cMapPacked: true,
     });
     const doc = await loadingTask.promise;
     let fullText = '';
@@ -39,47 +68,54 @@ export async function extractTextFromPdfData(data: Uint8Array): Promise<string> 
         .filter(Boolean);
       fullText += strings.join(' ') + '\n';
     }
-    if (fullText.trim().length > 0) {
-      return fullText;
+
+    const cleaned = fullText.trim();
+    if (cleaned.length > 0 && isCleanReadableText(cleaned)) {
+      return cleaned;
     }
   } catch (err) {
-    console.warn('pdfjs parser error, attempting stream fallback:', err);
+    console.warn('pdfjs parser error on document:', err);
   }
 
-  // Fallback: extract visible text from stream or raw bytes
-  try {
-    const decoder = new TextDecoder('utf-8', { fatal: false });
-    const rawText = decoder.decode(data);
-    
-    // Look for text in TJ/Tj blocks or plain readable strings
-    const matches: string[] = [];
-    const tjRegex = /\(([^)]+)\)\s*Tj/g;
-    let match: RegExpExecArray | null;
-    while ((match = tjRegex.exec(rawText)) !== null) {
-      matches.push(match[1]);
-    }
+  // Never return raw binary stream bytes as text to avoid mojibake (亂碼)
+  return '';
+}
 
-    if (matches.length > 0) {
-      return matches.join(' ');
-    }
+/**
+ * Helper to match a file name or content to one of the 9 canonical characters:
+ * lala, adam, daniel, leon, rave, amy, jiuge, fuye, ben
+ */
+function matchCanonCharacterId(name: string, contentSnippet: string): string | null {
+  const lowerName = name.toLowerCase();
+  const lowerContent = contentSnippet.toLowerCase().slice(0, 300);
 
-    // Secondary fallback: clean lines
-    const cleanLines = rawText
-      .replace(/[^\x20-\x7E\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef\n\r]/g, ' ')
-      .split(/\r?\n/)
-      .map(l => l.trim())
-      .filter(l => l.length > 5);
+  if (lowerName.includes('adam') || name.includes('Adam') || name.includes('養子')) return 'adam';
+  if (lowerName.includes('daniel') || name.includes('Daniel') || name.includes('丹尼爾') || lowerName.includes('stone')) return 'daniel';
+  if (lowerName.includes('leon') || name.includes('Leon') || name.includes('李昂') || name.includes('seiko')) return 'leon';
+  if (lowerName.includes('rave') || name.includes('Rave') || name.includes('雷偉')) return 'rave';
+  if (lowerName.includes('amy') || name.includes('Amy') || name.includes('陳詠芯')) return 'amy';
+  if (lowerName.includes('jiuge') || name.includes('九歌') || lowerName.includes('jiu ge')) return 'jiuge';
+  if (lowerName.includes('fuye') || name.includes('傅爺') || lowerName.includes('fu ye')) return 'fuye';
+  if (lowerName.includes('ben') || name.includes('Ben') || name.includes('伴遊')) return 'ben';
+  if (lowerName.includes('lala') || name.includes('Lala') || name.includes('楊樂兒') || name.includes('主角')) return 'lala';
 
-    return cleanLines.slice(0, 500).join('\n');
-  } catch (fallbackErr) {
-    console.error('All PDF extraction attempts failed:', fallbackErr);
-    return '';
-  }
+  if (lowerContent.includes('adam') || lowerContent.includes('法定養子')) return 'adam';
+  if (lowerContent.includes('daniel') || lowerContent.includes('daniel stone')) return 'daniel';
+  if (lowerContent.includes('leon') || lowerContent.includes('李昂')) return 'leon';
+  if (lowerContent.includes('rave') || lowerContent.includes('雷偉')) return 'rave';
+  if (lowerContent.includes('amy') || lowerContent.includes('陳詠芯')) return 'amy';
+  if (lowerContent.includes('九歌')) return 'jiuge';
+  if (lowerContent.includes('傅爺')) return 'fuye';
+  if (lowerContent.includes('伴遊') || lowerContent.includes('lala姐姐')) return 'ben';
+  if (lowerContent.includes('楊樂兒') || lowerContent.includes('佳士得')) return 'lala';
+
+  return null;
 }
 
 /**
  * Client-side parser for Kindroid Book ZIP archive or single PDF/TXT files.
  * Runs completely on-device in browser / Android phone without requiring server.
+ * Preserves ALL 9 canonical characters: Lala, Adam, Daniel, Leon, Rave, Amy, Jiuge, Fuye, Ben.
  */
 export async function parseBookArchiveOnClient(file: File): Promise<ParsedBookData> {
   const isZip = file.name.toLowerCase().endsWith('.zip') || file.type.includes('zip');
@@ -115,7 +151,10 @@ export async function parseBookArchiveOnClient(file: File): Promise<ParsedBookDa
           lower.endsWith('.story') ||
           lower.endsWith('.csv')
         ) {
-          content = await entry.async('string');
+          const raw = await entry.async('string');
+          if (isCleanReadableText(raw)) {
+            content = raw;
+          }
         }
       } catch (err) {
         console.warn(`Could not read entry ${relPath} from zip:`, err);
@@ -148,101 +187,77 @@ export async function parseBookArchiveOnClient(file: File): Promise<ParsedBookDa
   } else if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
     const arrayBuffer = await file.arrayBuffer();
     const content = await extractTextFromPdfData(new Uint8Array(arrayBuffer));
-    extractedFiles.push({
-      name: file.name,
-      content: content.trim(),
-      isBackground: file.name.includes('背景') || content.slice(0, 300).includes('背景'),
-      isDialogue: file.name.includes('對話'),
-    });
+    if (content && content.trim().length > 0) {
+      extractedFiles.push({
+        name: file.name,
+        content: content.trim(),
+        isBackground: file.name.includes('背景') || content.slice(0, 300).includes('背景'),
+        isDialogue: file.name.includes('對話'),
+      });
+    }
   } else {
     // Plain text or markdown
     const content = await file.text();
-    extractedFiles.push({
-      name: file.name || '原著文字.txt',
-      content: content.trim(),
-      isBackground: file.name.includes('背景') || content.slice(0, 300).includes('背景'),
-      isDialogue: file.name.includes('對話'),
-    });
+    if (content && isCleanReadableText(content)) {
+      extractedFiles.push({
+        name: file.name || '原著文字.txt',
+        content: content.trim(),
+        isBackground: file.name.includes('背景') || content.slice(0, 300).includes('背景'),
+        isDialogue: file.name.includes('對話'),
+      });
+    }
   }
 
   if (extractedFiles.length === 0) {
-    throw new Error('未能在檔案中提取到任何有效文字內容，請確認 ZIP 壓縮包內包含 PDF 或文字檔案。');
+    throw new Error('未能在檔案中提取到任何有效文字內容，請確認 ZIP 壓縮包內包含 PDF 或文字檔案，或檔案未被密碼加密。');
   }
 
   // Separate background files and dialogue files
   const bgFiles = extractedFiles.filter(f => f.isBackground);
   const dialogueFiles = extractedFiles.filter(f => f.isDialogue || !f.isBackground);
 
-  const detectedCharacters: Character[] = [];
+  // START WITH ALL 9 CANONICAL CHARACTERS PRESERVED INTACT
+  const detectedCharacters: Character[] = INITIAL_CHARACTERS.map(c => ({
+    ...c,
+    stats: { ...c.stats },
+    memoryTags: [...(c.memoryTags || [])],
+  }));
+
   const corpusItems: CorpusItem[] = [];
   const now = Date.now();
 
-  // 1. Lala (the protagonist)
-  detectedCharacters.push({
-    id: 'lala',
-    name: '啦啦',
-    englishName: 'Lala',
-    title: '主角',
-    avatarColor: 'bg-rose-100 text-rose-700 border-rose-200',
-    avatarInitial: '啦',
-    gender: 'female',
-    tagline: '',
-    personality: '作者自我本體，心境與情節完全由作者掌握。',
-    background: '故事主角。',
-    speechStyle: '自然平和，由作者親自演繹。',
-    relationshipWithLala: '自我本體',
-    stats: { affection: 100, trust: 100, tension: 10, intimacyStage: '深刻牽絆', currentMindset: '由作者掌握全劇走向。' },
-    memoryTags: ['主角'],
-  });
-
-  // 2. Process background files to extract characters
+  // Process each background file from ZIP and match to canonical character or create new one
   for (const bg of bgFiles) {
-    const lower = bg.name.toLowerCase();
-    let charName = '';
-    let charId = '';
-
-    if (lower.includes('adam') || bg.name.includes('Adam')) {
-      charName = 'Adam';
-      charId = 'adam';
-    } else if (lower.includes('daniel') || bg.name.includes('Daniel') || bg.name.includes('丹尼爾')) {
-      charName = 'Daniel';
-      charId = 'daniel';
+    const matchedId = matchCanonCharacterId(bg.name, bg.content);
+    if (matchedId) {
+      const existing = detectedCharacters.find(c => c.id === matchedId);
+      if (existing) {
+        // Update background with actual content from book file
+        existing.background = bg.content;
+      }
     } else {
+      // Dynamic extra character in the zip
       const cleanName = bg.name.replace(/\.[^/.]+$/, '').replace(/[_\-\s]*背景[_\-\s]*/g, '').trim();
       if (cleanName && cleanName.length < 15 && !cleanName.includes('/') && !cleanName.includes('\\')) {
-        charName = cleanName;
-        charId = `char_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-      }
-    }
-
-    if (charName && charId) {
-      const existing = detectedCharacters.find(c => c.id === charId);
-      const isAdam = charId === 'adam';
-      if (existing) {
-        existing.background = bg.content;
-      } else {
-        detectedCharacters.push({
-          id: charId,
-          name: charName,
-          englishName: charName,
-          title: isAdam ? '養子' : '',
-          avatarColor: isAdam ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-sky-100 text-sky-700 border-sky-200',
-          avatarInitial: charName.slice(0, 2),
-          gender: 'male',
-          tagline: '',
-          personality: '100% 來自本書檔案背景，不擅自定位。',
-          background: bg.content, // EXACT 100% background text from PDF/file
-          speechStyle: '遵循本書原著風格。',
-          relationshipWithLala: isAdam ? '領養關係（法定養子，非親生）' : '取自本書背景記錄',
-          stats: {
-            affection: isAdam ? 95 : 75,
-            trust: isAdam ? 95 : 75,
-            tension: 15,
-            intimacyStage: isAdam ? '深刻牽絆' : '漸生信任',
-            currentMindset: '載入原著背景。'
-          },
-          memoryTags: ['原著角色'],
-        });
+        const charId = `char_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        if (!detectedCharacters.find(c => c.id === charId)) {
+          detectedCharacters.push({
+            id: charId,
+            name: cleanName,
+            englishName: cleanName,
+            title: '',
+            avatarColor: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+            avatarInitial: cleanName.slice(0, 2),
+            gender: 'other',
+            tagline: '',
+            personality: '100% 來自本書檔案背景，不擅自定位。',
+            background: bg.content,
+            speechStyle: '遵循本書原著風格。',
+            relationshipWithLala: '取自本書背景記錄',
+            stats: { affection: 60, trust: 60, tension: 20, intimacyStage: '審慎試探', currentMindset: '載入原著背景。' },
+            memoryTags: ['原著角色'],
+          });
+        }
       }
     }
 
@@ -255,46 +270,6 @@ export async function parseBookArchiveOnClient(file: File): Promise<ParsedBookDa
       tags: ['原著背景', '禁止篡改', bg.name],
       isActive: true,
       updatedAt: now,
-    });
-  }
-
-  // Ensure Adam is in detected characters
-  if (!detectedCharacters.find(c => c.id === 'adam')) {
-    detectedCharacters.push({
-      id: 'adam',
-      name: 'Adam',
-      englishName: 'Adam',
-      title: '養子',
-      avatarColor: 'bg-amber-100 text-amber-800 border-amber-200',
-      avatarInitial: 'Adm',
-      gender: 'male',
-      tagline: '',
-      personality: '背景與互動嚴格以原著記載為準。',
-      background: '啦啦的法定養子。領養關係，履行對已故師傅養到18歲的承諾。背景嚴格取自本書檔案。',
-      speechStyle: '以原著實際對白記錄為準。',
-      relationshipWithLala: '領養關係（法定養子，非親生）',
-      stats: { affection: 95, trust: 95, tension: 10, intimacyStage: '深刻牽絆', currentMindset: '以原著記載互動為準。' },
-      memoryTags: ['原著角色', '領養'],
-    });
-  }
-
-  // Ensure Daniel is in detected characters
-  if (!detectedCharacters.find(c => c.id === 'daniel')) {
-    detectedCharacters.push({
-      id: 'daniel',
-      name: 'Daniel',
-      englishName: 'Daniel',
-      title: '',
-      avatarColor: 'bg-sky-100 text-sky-700 border-sky-200',
-      avatarInitial: 'Dan',
-      gender: 'male',
-      tagline: '',
-      personality: '遵循原著設定，系統不擅自定位。',
-      background: '取自本書檔案。',
-      speechStyle: '遵循本書原著風格。',
-      relationshipWithLala: '遵循原著設定。',
-      stats: { affection: 75, trust: 75, tension: 20, intimacyStage: '漸生信任', currentMindset: '等待載入本書情節。' },
-      memoryTags: ['原著角色'],
     });
   }
 
@@ -312,19 +287,26 @@ export async function parseBookArchiveOnClient(file: File): Promise<ParsedBookDa
     });
 
     const lines = df.content.split('\n').filter((l: string) => l.trim().length > 0);
-    for (const line of lines.slice(-20)) {
+    for (const line of lines.slice(-25)) {
       if (line.includes('：') || line.includes(':')) {
         const parts = line.split(/[：:]/);
         const speakerName = parts[0].trim();
         const content = parts.slice(1).join('：').trim();
-        if (content) {
-          const isLala = speakerName.includes('啦啦') || speakerName.toLowerCase() === 'lala';
-          const matchedChar = detectedCharacters.find(c => c.name.toLowerCase() === speakerName.toLowerCase());
+        if (content && isCleanReadableText(content)) {
+          const matchedChar = detectedCharacters.find(c =>
+            c.name.toLowerCase() === speakerName.toLowerCase() ||
+            c.englishName?.toLowerCase().includes(speakerName.toLowerCase())
+          );
+          const isLala = speakerName.includes('啦啦') || speakerName.toLowerCase() === 'lala' || speakerName.includes('樂兒');
+          const senderId = isLala ? 'lala' : (matchedChar ? matchedChar.id : 'other');
+
           dialogueMessages.push({
             id: `msg_book_${now}_${dialogueMessages.length}`,
-            senderId: isLala ? 'lala' : (matchedChar ? matchedChar.id : 'other'),
-            senderName: speakerName,
-            senderColor: isLala ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-800 border-slate-200',
+            senderId,
+            senderName: isLala ? 'Lala' : speakerName,
+            senderColor: isLala
+              ? 'bg-rose-100 text-rose-700 border-rose-200'
+              : (matchedChar?.avatarColor || 'bg-slate-100 text-slate-800 border-slate-200'),
             content,
             stageAction: '原著文本記載對話',
             timestamp: now - (100 - dialogueMessages.length) * 1000,
@@ -350,6 +332,6 @@ export async function parseBookArchiveOnClient(file: File): Promise<ParsedBookDa
     })),
     detectedCharacters,
     corpusItems,
-    dialogueMessages: dialogueMessages.slice(-25),
+    dialogueMessages: dialogueMessages.slice(-30),
   };
 }

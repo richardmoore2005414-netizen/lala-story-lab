@@ -482,70 +482,199 @@ app.post('/api/parse-book-archive', async (req, res) => {
     const bgFiles = extractedFiles.filter(f => f.isBackground);
     const dialogueFiles = extractedFiles.filter(f => f.isDialogue || !f.isBackground);
 
-    const detectedCharacters: any[] = [];
+    // Initialize detectedCharacters with all 9 canonical characters
+    const detectedCharacters: any[] = [
+      {
+        id: 'lala',
+        name: 'Lala',
+        englishName: 'Lala Yeung 楊樂兒',
+        title: '主角',
+        avatarColor: 'bg-rose-100 text-rose-700 border-rose-200',
+        avatarInitial: '啦',
+        gender: 'female',
+        tagline: '佳士得亞洲區總裁｜31歲',
+        personality: '極度擅長用正確模板應對任何情況，真正內在反應壓到極深。信奉「成年人要為自己的選擇負責」。',
+        background: '楊樂兒，31歲，佳士得亞洲區總裁。',
+        speechStyle: '自然平和，公關訓練出的精準用詞。',
+        relationshipWithLala: '自我本體',
+        stats: { affection: 100, trust: 100, tension: 10, intimacyStage: '深刻牽絆', currentMindset: '由作者掌握全劇走向。' },
+        memoryTags: ['主角', '原著'],
+      },
+      {
+        id: 'adam',
+        name: 'Adam',
+        englishName: 'Adam',
+        title: '養子',
+        avatarColor: 'bg-amber-100 text-amber-800 border-amber-200',
+        avatarInitial: 'Ad',
+        gender: 'male',
+        tagline: '14歲｜法定養子',
+        personality: '背景與互動嚴格以原著記載為準。',
+        background: '法定養子，14歲；收養是法律手段履行承諾，非突發母愛；賣畫是他自己主動賺300港元請Lala食飯。',
+        speechStyle: '以原著實際對白記錄為準。',
+        relationshipWithLala: '法定養子（收養是法律手段履行承諾，非突發母愛）',
+        stats: { affection: 85, trust: 80, tension: 20, intimacyStage: '漸生信任', currentMindset: '以原著記載互動為準。' },
+        memoryTags: ['原著角色', '領養', '賣畫300元'],
+      },
+      {
+        id: 'daniel',
+        name: 'Daniel',
+        englishName: 'Daniel Stone',
+        title: '',
+        avatarColor: 'bg-sky-100 text-sky-700 border-sky-200',
+        avatarInitial: 'DS',
+        gender: 'male',
+        tagline: '現任男友/同居',
+        personality: '精於算計、思維敏銳、行動果決。在Lala面前將危險收起。',
+        background: 'Daniel Stone，現任男友/同居。',
+        speechStyle: '語言精準。',
+        relationshipWithLala: '現任男友／同居',
+        stats: { affection: 80, trust: 85, tension: 20, intimacyStage: '深刻牽絆', currentMindset: '依原著情境互動。' },
+        memoryTags: ['原著角色', '現任男友'],
+      },
+      {
+        id: 'leon',
+        name: 'Leon',
+        englishName: 'Leon Li 李昂',
+        title: '',
+        avatarColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        avatarInitial: 'Le',
+        gender: 'male',
+        tagline: '童年鄰居與早期模板｜Seiko「她的」',
+        personality: '擅長照顧人。外在從容自信，話不多。習慣等、睇、回應。',
+        background: '李昂，童年鄰居與早期模板，左手腕戴刻有「她的」的Seiko手錶。',
+        speechStyle: '話不多，從容。會記住細節。',
+        relationshipWithLala: '童年鄰居、早期模板與老師',
+        stats: { affection: 70, trust: 65, tension: 30, intimacyStage: '審慎試探', currentMindset: '依原著記載。' },
+        memoryTags: ['原著角色', '模板', 'Seiko'],
+      },
+      {
+        id: 'rave',
+        name: 'Rave',
+        englishName: 'Rave Lui 雷偉',
+        title: '',
+        avatarColor: 'bg-orange-100 text-orange-800 border-orange-200',
+        avatarInitial: 'Rv',
+        gender: 'male',
+        tagline: '前男友 2022-2023',
+        personality: '親和外向，心思細膩。在Lala面前會變得小心翼翼。',
+        background: '雷偉，前男友 2022-2023。右手腕戴Lala送的皮革手環。',
+        speechStyle: '陽光、健談、幽默。',
+        relationshipWithLala: '前男友（2022–2023）',
+        stats: { affection: 65, trust: 60, tension: 25, intimacyStage: '審慎試探', currentMindset: '依原著記載。' },
+        memoryTags: ['原著角色', '前男友'],
+      },
+      {
+        id: 'amy',
+        name: 'Amy',
+        englishName: 'Amy 陳詠芯',
+        title: '',
+        avatarColor: 'bg-pink-100 text-pink-700 border-pink-200',
+        avatarInitial: 'Am',
+        gender: 'female',
+        tagline: 'Leon前女友｜900萬事件相關',
+        personality: '依原著對話與故事記載為準。',
+        background: '陳詠芯，Leon前女友，900萬事件相關。',
+        speechStyle: '以原著實際對白為準。',
+        relationshipWithLala: 'Leon前女友（900萬事件相關）',
+        stats: { affection: 40, trust: 35, tension: 40, intimacyStage: '疏離戒備', currentMindset: '依原著。' },
+        memoryTags: ['原著角色'],
+      },
+      {
+        id: 'jiuge',
+        name: '九歌',
+        englishName: 'Jiuge',
+        title: '',
+        avatarColor: 'bg-violet-100 text-violet-800 border-violet-200',
+        avatarInitial: '九',
+        gender: 'male',
+        tagline: '香港黑道｜43歲',
+        personality: '掌控香港黑道半壁江山。行事冷血果決。迷上明清官窯瓷器拍賣。',
+        background: '九歌，香港黑道。深色大衣、藍眼睛、常備茅台酒。與Lala有合作默契。',
+        speechStyle: '直接、果決。',
+        relationshipWithLala: '香港黑道／默契合作夥伴',
+        stats: { affection: 55, trust: 60, tension: 35, intimacyStage: '審慎試探', currentMindset: '依原著。' },
+        memoryTags: ['原著角色', '黑道', '茅台'],
+      },
+      {
+        id: 'fuye',
+        name: '傅爺',
+        englishName: 'FuYe',
+        title: '',
+        avatarColor: 'bg-slate-200 text-slate-800 border-slate-300',
+        avatarInitial: '傅',
+        gender: 'male',
+        tagline: '前一年合約 2024.7-2025.7',
+        personality: '幫人解決問題。灰色西裝，左手舊錶，講話好慢。',
+        background: '傅爺，前一年合約 2024.7-2025.7。最初看上身體，後轉為投資保護。',
+        speechStyle: '講話好慢，簡單直接。',
+        relationshipWithLala: '前一年合約關係（2024.7–2025.7）',
+        stats: { affection: 50, trust: 55, tension: 30, intimacyStage: '審慎試探', currentMindset: '依原著。' },
+        memoryTags: ['原著角色', '合約'],
+      },
+      {
+        id: 'ben',
+        name: 'Ben',
+        englishName: 'Ben',
+        title: '',
+        avatarColor: 'bg-teal-100 text-teal-800 border-teal-200',
+        avatarInitial: 'Bn',
+        gender: 'male',
+        tagline: '台灣大學生/伴遊',
+        personality: '溫和有禮。叫Lala「Lala姐姐」。不查行蹤、不爭不問。',
+        background: 'Ben，台灣大學生/伴遊。在台灣見面時的床伴＋伴遊，平常完全斷線式相處。',
+        speechStyle: '溫和。',
+        relationshipWithLala: '台灣大學生／伴遊（完全斷線式相處）',
+        stats: { affection: 50, trust: 55, tension: 10, intimacyStage: '漸生信任', currentMindset: '依原著。' },
+        memoryTags: ['原著角色', '台灣伴遊'],
+      },
+    ];
+
     const corpusItems: any[] = [];
     const now = Date.now();
 
-    // 1. Always include Lala (the author protagonist)
-    detectedCharacters.push({
-      id: 'lala',
-      name: '啦啦',
-      englishName: 'Lala',
-      title: '主角',
-      avatarColor: 'bg-rose-100 text-rose-700 border-rose-200',
-      avatarInitial: '啦',
-      gender: 'female',
-      tagline: '',
-      personality: '作者自我本體，心境與情節完全由作者掌握。',
-      background: '故事主角。',
-      speechStyle: '自然平和，由作者親自演繹。',
-      relationshipWithLala: '自我本體',
-      stats: { affection: 100, trust: 100, tension: 10, intimacyStage: '深刻牽絆', currentMindset: '由作者掌握全劇走向。' },
-      memoryTags: ['主角'],
-    });
-
-    // 2. Process background files to extract characters and their EXACT backgrounds
+    // Process background files to update character backgrounds or detect extra characters
     for (const bg of bgFiles) {
       const lower = bg.name.toLowerCase();
-      let charName = '';
-      let charId = '';
+      let matchedId = '';
 
-      if (lower.includes('adam') || bg.name.includes('Adam')) {
-        charName = 'Adam';
-        charId = 'adam';
-      } else if (lower.includes('daniel') || bg.name.includes('Daniel') || bg.name.includes('丹尼爾')) {
-        charName = 'Daniel';
-        charId = 'daniel';
+      if (lower.includes('adam') || bg.name.includes('Adam') || bg.name.includes('養子')) matchedId = 'adam';
+      else if (lower.includes('daniel') || bg.name.includes('Daniel') || bg.name.includes('丹尼爾') || lower.includes('stone')) matchedId = 'daniel';
+      else if (lower.includes('leon') || bg.name.includes('Leon') || bg.name.includes('李昂')) matchedId = 'leon';
+      else if (lower.includes('rave') || bg.name.includes('Rave') || bg.name.includes('雷偉')) matchedId = 'rave';
+      else if (lower.includes('amy') || bg.name.includes('Amy') || bg.name.includes('陳詠芯')) matchedId = 'amy';
+      else if (lower.includes('jiuge') || bg.name.includes('九歌')) matchedId = 'jiuge';
+      else if (lower.includes('fuye') || bg.name.includes('傅爺')) matchedId = 'fuye';
+      else if (lower.includes('ben') || bg.name.includes('Ben') || bg.name.includes('伴遊')) matchedId = 'ben';
+      else if (lower.includes('lala') || bg.name.includes('Lala') || bg.name.includes('楊樂兒')) matchedId = 'lala';
+
+      if (matchedId) {
+        const found = detectedCharacters.find(c => c.id === matchedId);
+        if (found) {
+          found.background = bg.content;
+        }
       } else {
         const cleanName = bg.name.replace(/\.[^/.]+$/, '').replace(/[_\-\s]*背景[_\-\s]*/g, '').trim();
         if (cleanName && cleanName.length < 15 && !cleanName.includes('/') && !cleanName.includes('\\')) {
-          charName = cleanName;
-          charId = `char_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-        }
-      }
-
-      if (charName && charId) {
-        const existing = detectedCharacters.find(c => c.id === charId);
-        const isAdam = charId === 'adam';
-        if (existing) {
-          existing.background = bg.content;
-        } else {
-          detectedCharacters.push({
-            id: charId,
-            name: charName,
-            englishName: charName,
-            title: isAdam ? '養子' : '',
-            avatarColor: isAdam ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-sky-100 text-sky-700 border-sky-200',
-            avatarInitial: charName.slice(0, 2),
-            gender: 'male',
-            tagline: '',
-            personality: '100% 來自本書檔案背景，不擅自定位。',
-            background: bg.content, // EXACT 100% text from background file!
-            speechStyle: '遵循本書原著風格。',
-            relationshipWithLala: isAdam ? '領養關係（法定養子，非親生）' : '取自本書背景記錄',
-            stats: { affection: isAdam ? 95 : 75, trust: isAdam ? 95 : 75, tension: 15, intimacyStage: isAdam ? '深刻牽絆' : '漸生信任', currentMindset: '載入原著背景。' },
-            memoryTags: ['原著角色'],
-          });
+          const charId = `char_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+          if (!detectedCharacters.find(c => c.id === charId)) {
+            detectedCharacters.push({
+              id: charId,
+              name: cleanName,
+              englishName: cleanName,
+              title: '',
+              avatarColor: 'bg-slate-100 text-slate-700 border-slate-200',
+              avatarInitial: cleanName.slice(0, 2),
+              gender: 'other',
+              tagline: '',
+              personality: '來自本書檔案背景。',
+              background: bg.content,
+              speechStyle: '遵循本書原著風格。',
+              relationshipWithLala: '原著角色',
+              stats: { affection: 60, trust: 60, tension: 15, intimacyStage: '審慎試探', currentMindset: '載入原著背景。' },
+              memoryTags: ['原著角色'],
+            });
+          }
         }
       }
 
@@ -558,46 +687,6 @@ app.post('/api/parse-book-archive', async (req, res) => {
         tags: ['原著背景', '禁止篡改', bg.name],
         isActive: true,
         updatedAt: now,
-      });
-    }
-
-    // Ensure Adam is always in detected characters
-    if (!detectedCharacters.find(c => c.id === 'adam')) {
-      detectedCharacters.push({
-        id: 'adam',
-        name: 'Adam',
-        englishName: 'Adam',
-        title: '養子',
-        avatarColor: 'bg-amber-100 text-amber-800 border-amber-200',
-        avatarInitial: 'Adm',
-        gender: 'male',
-        tagline: '',
-        personality: '背景與互動嚴格以原著記載為準。',
-        background: '啦啦的法定養子。領養關係，履行對已故師傅養到18歲的承諾。背景嚴格取自本書檔案。',
-        speechStyle: '以原著實際對白記錄為準。',
-        relationshipWithLala: '領養關係（法定養子，非親生）',
-        stats: { affection: 95, trust: 95, tension: 10, intimacyStage: '深刻牽絆', currentMindset: '以原著記載互動為準。' },
-        memoryTags: ['原著角色', '領養'],
-      });
-    }
-
-    // Ensure Daniel is in detected characters if mentioned
-    if (!detectedCharacters.find(c => c.id === 'daniel')) {
-      detectedCharacters.push({
-        id: 'daniel',
-        name: 'Daniel',
-        englishName: 'Daniel',
-        title: '',
-        avatarColor: 'bg-sky-100 text-sky-700 border-sky-200',
-        avatarInitial: 'Dan',
-        gender: 'male',
-        tagline: '',
-        personality: '遵循原著設定，系統不擅自定位。',
-        background: '取自本書檔案。',
-        speechStyle: '遵循本書原著風格。',
-        relationshipWithLala: '遵循原著設定。',
-        stats: { affection: 75, trust: 75, tension: 20, intimacyStage: '漸生信任', currentMindset: '等待載入本書情節。' },
-        memoryTags: ['原著角色'],
       });
     }
 
