@@ -1,0 +1,93 @@
+# Build Android APK and upload it so you can download it from the Actions tab.
+# How to use (newbie steps):
+# 1. Open repo → Actions → "Build APK"
+# 2. Click "Run workflow" → Run workflow
+# 3. Wait for the green check (about 5–10 min)
+# 4. Open the finished run → Artifacts → download lala-story-lab-apk.zip
+# 5. Unzip → install the .apk on your Android phone (enable "Install unknown apps")
+
+name: Build APK
+
+on:
+  workflow_dispatch:   # Manual button: Actions → Build APK → Run workflow
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'vite.config.ts'
+      - 'index.html'
+      - '.github/workflows/build-apk.yml'
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web app (Vite → dist/)
+        run: npm run build
+
+      - name: Setup Java (for Android build)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Capacitor and init Android project
+        run: |
+          npm install -D @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init "Lala Story Lab" "com.lalastorylab.app" --web-dir dist
+          npx cap add android
+          npx cap sync android
+
+      - name: Build debug APK with Gradle
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+        env:
+          CI: true
+
+      - name: Locate and rename APK
+        id: apk
+        run: |
+          APK_PATH=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          echo "Found APK: $APK_PATH"
+          mkdir -p artifacts
+          cp "$APK_PATH" artifacts/LalaStoryLab.apk
+          ls -lh artifacts/LalaStoryLab.apk
+          echo "apk_path=artifacts/LalaStoryLab.apk" >> $GITHUB_OUTPUT
+
+      - name: Upload APK (download from Actions tab)
+        uses: actions/upload-artifact@v4
+        with:
+          name: lala-story-lab-apk
+          path: artifacts/LalaStoryLab.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          echo "## APK ready" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Scroll to **Artifacts** on this page" >> $GITHUB_STEP_SUMMARY
+          echo "2. Download **lala-story-lab-apk**" >> $GITHUB_STEP_SUMMARY
+          echo "3. Unzip if needed, then install **LalaStoryLab.apk** on your Android phone" >> $GITHUB_STEP_SUMMARY
+          echo "4. On phone: Settings → allow Install unknown apps for your browser/files app" >> $GITHUB_STEP_SUMMARY
