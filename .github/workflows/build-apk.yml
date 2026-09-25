@@ -1,15 +1,14 @@
-# Build Android APK and upload it so you can download it from the Actions tab.
-# How to use (newbie steps):
-# 1. Open repo → Actions → "Build APK"
-# 2. Click "Run workflow" → Run workflow
-# 3. Wait for the green check (about 5–10 min)
-# 4. Open the finished run → Artifacts → download lala-story-lab-apk.zip
-# 5. Unzip → install the .apk on your Android phone (enable "Install unknown apps")
+# Build Android APK — download from Actions → Artifacts
+# Newbie steps:
+# 1. Actions → Build APK → Run workflow
+# 2. Wait for green check (5–15 min)
+# 3. Open the run → Artifacts → download lala-story-lab-apk
+# 4. Install LalaStoryLab.apk on your phone
 
 name: Build APK
 
 on:
-  workflow_dispatch:   # Manual button: Actions → Build APK → Run workflow
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -33,7 +32,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          # No cache — project uses bun.lock, not package-lock.json
 
       - name: Install dependencies
         run: npm install
@@ -50,10 +49,18 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Capacitor and init Android project
+      - name: Install Capacitor and create Android project
         run: |
-          npm install -D @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "Lala Story Lab" "com.lalastorylab.app" --web-dir dist
+          npm install -D @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest
+          # Write capacitor config (avoid interactive prompts)
+          cat > capacitor.config.json << 'CAP'
+          {
+            "appId": "com.lalastorylab.app",
+            "appName": "Lala Story Lab",
+            "webDir": "dist",
+            "server": { "androidScheme": "https" }
+          }
+          CAP
           npx cap add android
           npx cap sync android
 
@@ -66,14 +73,12 @@ jobs:
           CI: true
 
       - name: Locate and rename APK
-        id: apk
         run: |
           APK_PATH=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1)
           echo "Found APK: $APK_PATH"
           mkdir -p artifacts
           cp "$APK_PATH" artifacts/LalaStoryLab.apk
           ls -lh artifacts/LalaStoryLab.apk
-          echo "apk_path=artifacts/LalaStoryLab.apk" >> $GITHUB_OUTPUT
 
       - name: Upload APK (download from Actions tab)
         uses: actions/upload-artifact@v4
@@ -89,5 +94,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "1. Scroll to **Artifacts** on this page" >> $GITHUB_STEP_SUMMARY
           echo "2. Download **lala-story-lab-apk**" >> $GITHUB_STEP_SUMMARY
-          echo "3. Unzip if needed, then install **LalaStoryLab.apk** on your Android phone" >> $GITHUB_STEP_SUMMARY
-          echo "4. On phone: Settings → allow Install unknown apps for your browser/files app" >> $GITHUB_STEP_SUMMARY
+          echo "3. Install **LalaStoryLab.apk** on your Android phone" >> $GITHUB_STEP_SUMMARY
