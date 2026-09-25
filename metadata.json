@@ -1,0 +1,6 @@
+{
+  "name": "Lala Story Lab",
+  "description": "專為作者打造的沉浸式獨立故事對話與多維度劇情分支管理應用。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
