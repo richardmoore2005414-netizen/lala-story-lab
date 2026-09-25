@@ -31,6 +31,7 @@ import {
   FAVORITE_CATEGORIES,
 } from '../types/story';
 import { StoryStorageService } from '../services/storage';
+import { getApiUrl } from '../services/apiClient';
 import { FavoritesVaultModal } from './FavoritesVaultModal';
 import { ImportStoryTextModal } from './ImportStoryTextModal';
 
@@ -179,7 +180,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       const corpusContext = corpusItems.map(c => `[${c.title}]: ${c.content}`).join('\n\n');
       const authorFavoritesSummary = StoryStorageService.getAuthorFavoritesSummary();
 
-      const response = await fetch('/api/choices', {
+      const response = await fetch(getApiUrl('/api/choices'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -191,6 +192,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           authorFavoritesSummary,
         }),
       });
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        return;
+      }
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0) {
         setChoices(data);
@@ -217,7 +222,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       const corpusContext = corpusItems.map(c => `[${c.title}]: ${c.content}`).join('\n\n');
       const authorFavoritesSummary = StoryStorageService.getAuthorFavoritesSummary();
 
-      const response = await fetch('/api/chat', {
+      const response = await fetch(getApiUrl('/api/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -233,6 +238,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           authorFavoritesSummary,
         }),
       });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('伺服器尚未就緒，請稍候重試');
+      }
 
       const data = await response.json();
 

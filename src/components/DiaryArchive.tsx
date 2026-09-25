@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { DiaryEntry, Character, StoryMessage, StorySession } from '../types/story';
 import { StoryStorageService } from '../services/storage';
+import { getApiUrl } from '../services/apiClient';
 
 interface DiaryArchiveProps {
   characters: Character[];
@@ -78,7 +79,7 @@ export const DiaryArchive: React.FC<DiaryArchiveProps> = ({
       const currentBranch = branchNodes.find(b => b.id === session.activeBranchId);
       const chosenChar = characters.find(c => c.id === selectedCharForDiary);
 
-      const response = await fetch('/api/diary', {
+      const response = await fetch(getApiUrl('/api/diary'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -89,6 +90,11 @@ export const DiaryArchive: React.FC<DiaryArchiveProps> = ({
           chapterTitle: chapterNote || currentBranch?.title || '階段歷程回顧',
         }),
       });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('伺服器未返回 JSON 數據');
+      }
 
       const data = await response.json();
 

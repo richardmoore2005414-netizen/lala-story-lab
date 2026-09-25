@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { StorySession, StoryBranchNode, StoryMessage, Character, CorpusItem } from '../types/story';
 import { StoryStorageService } from '../services/storage';
+import { parseBookArchiveOnClient, ParsedBookData } from '../services/bookArchiveParser';
+import { getApiUrl } from '../services/apiClient';
 
 interface ImportStoryTextModalProps {
   isOpen: boolean;
@@ -71,14 +73,26 @@ export const ImportStoryTextModal: React.FC<ImportStoryTextModalProps> = ({
     setParsedData(null);
 
     try {
+      // 1. Try on-device client-side parsing first (fastest, offline, works in Android APK without server)
+      try {
+        const clientParsed = await parseBookArchiveOnClient(file);
+        setParsedData(clientParsed);
+        setSuccessMsg(`成功讀取書本檔案！共解析 ${clientParsed.totalFilesCount} 份檔案（含 ${clientParsed.backgroundFilesCount} 份背景、${clientParsed.dialogueFilesCount} 份對話）。`);
+        setIsLoading(false);
+        return;
+      } catch (clientErr: any) {
+        console.warn('Client-side parsing failed or incomplete, attempting server fallback:', clientErr);
+      }
+
+      // 2. Server-side fallback via API endpoint
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
           const result = e.target?.result as string;
-          // Extract base64 part
           const base64 = result.includes(',') ? result.split(',')[1] : result;
 
-          const response = await fetch('/api/parse-book-archive', {
+          const endpoint = getApiUrl('/api/parse-book-archive');
+          const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -86,6 +100,11 @@ export const ImportStoryTextModal: React.FC<ImportStoryTextModalProps> = ({
               filename: file.name,
             }),
           });
+
+          const contentType = response.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) {
+            throw new Error('伺服器目前未能以 JSON 格式回應，已為您改用裝置端原生解析。');
+          }
 
           const data = await response.json();
           if (!response.ok || data.error) {
@@ -96,7 +115,7 @@ export const ImportStoryTextModal: React.FC<ImportStoryTextModalProps> = ({
           setSuccessMsg(`成功讀取書本檔案！共解析 ${data.totalFilesCount} 份檔案（含 ${data.backgroundFilesCount} 份背景、${data.dialogueFilesCount} 份對話）。`);
         } catch (err: any) {
           console.error('API parse error:', err);
-          setErrorMsg(err.message || '檔案解析失敗，請確認檔案格式是否正確。');
+          setErrorMsg(err.message || '檔案解析失敗，請確認 ZIP 壓縮包內包含 PDF 或文字檔案。');
         } finally {
           setIsLoading(false);
         }

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { CorpusItem } from '../types/story';
 import { StoryStorageService } from '../services/storage';
+import { getApiUrl } from '../services/apiClient';
 import { INITIAL_CORPUS } from '../data/initialCorpus';
 
 interface CorpusManagerProps {
@@ -80,11 +81,15 @@ export const CorpusManager: React.FC<CorpusManagerProps> = ({ onRefreshData }) =
     if (!rawText.trim()) return;
     setIsExtracting(true);
     try {
-      const response = await fetch('/api/extract-corpus', {
+      const response = await fetch(getApiUrl('/api/extract-corpus'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rawText }),
       });
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('伺服器未返回 JSON 數據');
+      }
       const data = await response.json();
 
       let structuredSummary = '';
